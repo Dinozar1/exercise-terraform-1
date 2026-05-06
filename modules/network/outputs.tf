@@ -1,4 +1,4 @@
 output "created_vnets" {
-    description = "resources of vnets for main in root"
-    value = azure_virtual_network.vnet
+  description = "resources of vnets for main in root"
+  value       = azurerm_virtual_network.vnet
 }

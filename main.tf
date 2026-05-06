@@ -4,34 +4,50 @@ resource "azurerm_resource_group" "rg" {
 }
 
 module "net_1" {
-    source = "./modules/network"
+  source = "./modules/network"
 
-    region = azurerm_resource_group.rg.location
-    rg_name = azurerm_resource_group.rg.name
+  region  = azurerm_resource_group.rg.location
+  rg_name = azurerm_resource_group.rg.name
 
-    vnets = var.vnet1.default
+  vnets_map = var.vnet1
+
+  subnet_count = 3
 
 
 }
 
 module "net_2" {
-    source = "./modules/network"
+  source = "./modules/network"
 
-    region = azurerm_resource_group.rg.location
-    rg_name = azurerm_resource_group.rg.name
+  region  = azurerm_resource_group.rg.location
+  rg_name = azurerm_resource_group.rg.name
 
-    vnets = var.vnet2.default
-    
+  vnets_map = var.vnet2
+
+  subnet_count = 1
+
 }
 
 locals {
-    hub_vnet = values(module.net_2.vnets)[0]
+  hub_vnet = values(module.net_2.created_vnets)[0]
 }
 
-resource "azure_virtual_network_peering" "peer" {
-    for_each module.net_1.vnets
+resource "azurerm_virtual_network_peering" "peer_spoke" {
+  for_each = module.net_1.created_vnets
 
-    name = "peer-${each.value.name}"
-    resource_group_name = azurerm_resource_group.rg.name
-    remote_virtual_network_id = local.hub_vnet.id
+  name = "peer-${each.value.name}-to-hub"
+
+  virtual_network_name      = each.value.name
+  resource_group_name       = azurerm_resource_group.rg.name
+  remote_virtual_network_id = local.hub_vnet.id
+}
+
+resource "azurerm_virtual_network_peering" "peer_hub" {
+  for_each = module.net_2.created_vnets
+
+  name = "peer-${each.value.name}-to-spoke"
+
+  virtual_network_name      = each.value.name
+  resource_group_name       = azurerm_resource_group.rg.name
+  remote_virtual_network_id = each.value.id
 }

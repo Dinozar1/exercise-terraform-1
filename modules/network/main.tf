@@ -8,10 +8,11 @@ locals {
 
 
   subnets_vars = flatten([
-    for vnet_name, vnet_address in var.vnets :
+    for vnet_name, vnet_address in var.vnets_map :
     [
 
-      for i in range(1, 4) : {
+
+      for i in range(1, var.subnet_count + 1) : {
         vnet_key  = vnet_name
         sub_index = i
         vnet_name = "vnet-${local.reg}-${vnet_name}"
@@ -34,7 +35,7 @@ locals {
 
 
 resource "azurerm_virtual_network" "vnet" {
-  for_each            = var.vnets
+  for_each            = var.vnets_map
   name                = "vnet-${local.reg}-${each.key}"
   address_space       = [each.value]
   location            = var.region
@@ -45,7 +46,7 @@ resource "azurerm_subnet" "subnet" {
   for_each = local.subnets_map
 
   name                = each.value.sub_name
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.rg_name
 
   virtual_network_name = azurerm_virtual_network.vnet[each.value.vnet_key].name
 
