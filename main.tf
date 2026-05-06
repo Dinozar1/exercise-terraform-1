@@ -43,11 +43,11 @@ resource "azurerm_virtual_network_peering" "peer_spoke" {
 }
 
 resource "azurerm_virtual_network_peering" "peer_hub" {
-  for_each = module.net_2.created_vnets
+  for_each = module.net_1.created_vnets
 
-  name = "peer-${each.value.name}-to-spoke"
+  name = "peer-hub-to-${each.value.name}"
 
-  virtual_network_name      = each.value.name
+  virtual_network_name      = local.hub_vnet.name
   resource_group_name       = azurerm_resource_group.rg.name
   remote_virtual_network_id = each.value.id
 }
