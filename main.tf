@@ -1,95 +1,37 @@
-locals {
-  region_map = {
-    "polandcentral" = "pl"
-  }
-
-  reg = lookup(local.region_map, var.region, "null")
-
-
-
-  subnets_vars = flatten([
-    for vnet_name, vnet_address in var.vnets :
-    [
-
-      for i in range(1, 4) : {
-        vnet_key  = vnet_name
-        sub_index = i
-        vnet_name = "vnet-${local.reg}-${vnet_name}"
-
-        sub_name = "snet-${local.reg}-${vnet_name}-${i}"
-
-        address = cidrsubnet(vnet_address, 8, i)
-      }
-    ]
-  ])
-
-  subnets_map = {
-    for s in local.subnets_vars :
-    "${s.vnet_name}-${s.sub_index}" => s
-  }
-
-
-}
-
-
 resource "azurerm_resource_group" "rg" {
   name     = "rg-test-szymon"
   location = var.region
 }
 
-resource "azurerm_virtual_network" "vnet" {
-  for_each            = var.vnets
-  name                = "vnet-${local.reg}-${each.key}"
-  address_space       = [each.value]
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
+module "net_1" {
+    source = "./modules/network"
 
-resource "azurerm_subnet" "subnet" {
-  for_each = local.subnets_map
+    region = azurerm_resource_group.rg.location
+    rg_name = azurerm_resource_group.rg.name
 
-  name                = each.value.sub_name
-  resource_group_name = azurerm_resource_group.rg.name
-
-  virtual_network_name = azurerm_virtual_network.vnet[each.value.vnet_key].name
-
-  address_prefixes = [each.value.address]
-}
-
-resource "azurerm_network_security_group" "nsg" {
-  for_each = local.subnets_map
-
-  name = "nsg-${each.value.sub_name}"
-
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+    vnets = var.vnet1.default
 
 
 }
 
-resource "azurerm_route_table" "rt" {
-  for_each = local.subnets_map
+module "net_2" {
+    source = "./modules/network"
 
-  name = "rt-${each.value.sub_name}"
+    region = azurerm_resource_group.rg.location
+    rg_name = azurerm_resource_group.rg.name
 
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+    vnets = var.vnet2.default
+    
 }
 
-resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {
-  for_each = local.subnets_map
-
-  subnet_id = azurerm_subnet.subnet[each.key].id
-
-  network_security_group_id = azurerm_network_security_group.nsg[each.key].id
-
+locals {
+    hub_vnet = values(module.net_2.vnets)[0]
 }
 
-resource "azurerm_subnet_route_table_association" "rt_assoc" {
-  for_each = local.subnets_map
+resource "azure_virtual_network_peering" "peer" {
+    for_each module.net_1.vnets
 
-  subnet_id = azurerm_subnet.subnet[each.key].id
-
-  route_table_id = azurerm_route_table.rt[each.key].id
-
+    name = "peer-${each.value.name}"
+    resource_group_name = azurerm_resource_group.rg.name
+    remote_virtual_network_id = local.hub_vnet.id
 }
